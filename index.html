@@ -124,7 +124,7 @@
         const chromeUI = document.getElementById('chrome');
 
         let screenHistory = ['signUp']; 
-        let map, locker_map;
+        let map; // Define map variable in the global scope
         
         // --- SCREEN TEMPLATES ---
         const screens = {
@@ -189,7 +189,7 @@
                     </div>
                     <h3 class="mt-6 font-bold text-lg text-gray-800">Upcoming Appointments</h3>
                     <div id="appointmentsList" class="mt-2 bg-white p-4 rounded-2xl shadow-md">
-                        ${appState.appointments.length === 0 ? "No appointments scheduled." : "<!-- appointments here -->"}
+                        ${appState.appointments.length === 0 ? "No appointments scheduled." : ""}
                     </div>
                     <div class="flex justify-between items-center mt-6">
                         <h3 class="font-bold text-lg text-gray-800">Community Buzz</h3>
@@ -217,7 +217,6 @@
                     <div id="growthSavedAlert" class="hidden mt-4 bg-green-100 text-green-800 p-3 rounded-lg text-sm">New growth data saved successfully!</div>
                     <div class="mt-4 bg-white p-4 rounded-2xl shadow-md">
                         <div class="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <!-- Placeholder for a real chart -->
                             <svg class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
                         </div>
                         <div class="grid grid-cols-2 gap-4 mt-4 text-center">
@@ -312,7 +311,7 @@
         // --- CORE APP LOGIC ---
 
         function renderScreen(screenId) {
-            const screenFunction = screens[screenId] || screens['home']; // Fallback to home
+            const screenFunction = screens[screenId] || screens['home'];
             const screenDiv = document.createElement('div');
             screenDiv.id = screenId;
             screenDiv.classList.add('figma-screen', 'scroll-hidden');
@@ -321,12 +320,11 @@
             
             requestAnimationFrame(() => {
                 screenDiv.classList.add('active');
+                const setupFunction = `setup_${screenId}`;
+                if (window[setupFunction]) {
+                    window[setupFunction]();
+                }
             });
-            
-            const setupFunction = `setup_${screenId}`;
-            if (window[setupFunction]) {
-                window[setupFunction]();
-            }
         }
 
         function navigateTo(screenId, isBack = false) {
@@ -592,6 +590,55 @@
             });
         }
 
+        window.setup_stuntingHeatMap = function() {
+            if (document.getElementById('map') && typeof L !== 'undefined' && !map) {
+                map = L.map('map').setView([-2.5, 118], 5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+                const heatZones = [ 
+                     { lat: 14.5995, lng: 120.9842, color: 'red' }, { lat: 23.8103, lng: 90.4125, color: 'red' }, { lat: 9.0765, lng: 7.3986, color: 'red' }, { lat: -6.2088, lng: 106.8456, color: 'red' },{ lat: 28.3949, lng: 84.1240, color: 'yellow' }, { lat: -13.9626, lng: 33.7741, color: 'yellow' },{ lat: -1.2921, lng: 36.8219, color: 'yellow' }, { lat: 33.8869, lng: 9.5375, color: 'green' }, { lat: -35.6751, lng: -71.5430, color: 'green' },
+                ];
+                heatZones.forEach(zone => L.circle([zone.lat, zone.lng], { color: zone.color, fillColor: zone.color, fillOpacity: 0.5, radius: 200000 }).addTo(map));
+                
+                let clinicMarkers = L.layerGroup();
+                let lockerMarkers = L.layerGroup();
+                const initialMapView = { center: [-2.5, 118], zoom: 5 };
+                const jakartaView = { center: [-6.176, 106.79], zoom: 14 };
+
+                const puskesmasLocations = [ { lat: -6.17539, lng: 106.82715, name: "Health Center Gambir" }, { lat: -6.19, lng: 106.83, name: "Health Center Menteng" }];
+                const puskesmasIcon = L.icon({ iconUrl: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'%3E%3Cpath d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'/%3E%3C/svg%3E`, iconSize: [24, 24], iconAnchor: [12, 24], popupAnchor: [0, -24] });
+                puskesmasLocations.forEach(p => L.marker([p.lat, p.lng], {icon: puskesmasIcon}).bindPopup(p.name).addTo(clinicMarkers));
+
+                const lockerLocations = [{ lat: -6.178, lng: 106.8, name: "Central Park Locker #1" }, { lat: -6.17, lng: 106.82, name: "Medit Locker #2" }];
+                const lockerIcon = L.icon({ iconUrl: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%238b5cf6'%3E%3Cpath d='M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7l8-4 8 4m0 6l-8 4-8-4'/%3E%3C/svg%3E`, iconSize: [32, 32], iconAnchor: [16, 16] });
+                lockerLocations.forEach(l => L.marker([l.lat, l.lng], {icon: lockerIcon}).bindPopup(l.name).addTo(lockerMarkers));
+
+                document.getElementById('clinicToggle').addEventListener('change', function(e) {
+                    if (e.target.checked) {
+                        document.getElementById('lockerToggle').checked = false;
+                        if (map.hasLayer(lockerMarkers)) map.removeLayer(lockerMarkers);
+                        map.addLayer(clinicMarkers);
+                        map.flyTo(jakartaView.center, 13, { animate: true, duration: 1.5 });
+                    } else {
+                        map.removeLayer(clinicMarkers);
+                        map.flyTo(initialMapView.center, initialMapView.zoom);
+                    }
+                });
+
+                document.getElementById('lockerToggle').addEventListener('change', function(e) {
+                    if (e.target.checked) {
+                        document.getElementById('clinicToggle').checked = false;
+                        if(map.hasLayer(clinicMarkers)) map.removeLayer(clinicMarkers);
+                        map.addLayer(lockerMarkers);
+                        map.flyTo(jakartaView.center, 14, { animate: true, duration: 1.5 });
+                    } else {
+                        map.removeLayer(lockerMarkers);
+                        map.flyTo(initialMapView.center, initialMapView.zoom);
+                    }
+                });
+            }
+        }
+        
         // --- INITIALIZE APP ---
         navigateTo('signUp');
 
